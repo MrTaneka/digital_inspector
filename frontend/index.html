@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Digital Inspector Pro - Armeta AI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --border: #334155;
+      --accent: #3b82f6;
+      --text: #e2e8f0;
+      --text-dim: #94a3b8;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --error: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Courier New', monospace;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Header */
+    .header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .badge {
+      background: var(--accent);
+      color: white;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: none;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-secondary:hover { background: var(--panel); }
+
+    /* Layout */
+    .container {
+      display: flex;
+      height: calc(100vh - 56px); /* Высота минус хедер */
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 280px;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .sidebar-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .sidebar-title {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      letter-spacing: 0.5px;
+    }
+
+    .file-count {
+      background: var(--accent);
+      color: white;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .upload-zone {
+      margin: 16px;
+      padding: 24px 16px;
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .upload-zone:hover {
+      border-color: var(--accent);
+      background: rgba(59, 130, 246, 0.05);
+    }
+
+    .files-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+
+    .file-item {
+      padding: 12px;
+      margin-bottom: 4px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .file-item:hover { background: rgba(59, 130, 246, 0.1); }
+    .file-item.active { background: rgba(59, 130, 246, 0.2); border-left: 3px solid var(--accent); }
+
+    .file-icon {
+      width: 36px;
+      height: 36px;
+      background: rgba(59, 130, 246, 0.15);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .file-info { flex: 1; min-width: 0; }
+    .file-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+    .file-meta { font-size: 11px; color: var(--text-dim); }
+
+    .file-badge { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; margin-right: 4px; }
+    .badge-qr { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+    .badge-stamp { background: rgba(59, 130, 246, 0.2); color: var(--accent); }
+    .badge-sign { background: rgba(239, 68, 68, 0.2); color: var(--error); }
+
+    /* MAIN VIEWER AREA */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: #0f172a;
+      position: relative;
+    }
+
+    /* Toolbar (Top) */
+    .viewer-toolbar {
+      height: 50px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 0 16px;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    .control-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      color: var(--text);
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .control-btn:hover {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    .page-info {
+      font-variant-numeric: tabular-nums;
+      font-size: 13px;
+      min-width: 80px;
+      text-align: center;
+      font-weight: 500;
+    }
+
+    .zoom-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: 20px;
+      padding-left: 20px;
+      border-left: 1px solid var(--border);
+    }
+
+    /* Viewer Container (Scrollable) */
+    .viewer-container {
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start; /* Start from top */
+      padding: 40px;
+      background-color: #0f172a;
+      background-image: radial-gradient(#1e293b 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    .viewer-placeholder {
+      margin-top: 100px;
+      text-align: center;
+      color: var(--text-dim);
+    }
+
+    #pdfCanvas {
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+      /* max-width removed to allow zoom */
+    }
+
+    /* Right Panel */
+    .right-panel {
+      width: 360px;
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .panel-header { padding: 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .panel-tabs { display: flex; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+
+    .tab { font-size: 13px; font-weight: 500; color: var(--text-dim); cursor: pointer; padding: 4px 0; border-bottom: 2px solid transparent; transition: all 0.2s; }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    .panel-content { flex: 1; overflow: auto; padding: 16px; }
+
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+    .stat-card { background: rgba(59, 130, 246, 0.05); border: 1px solid var(--border); border-radius: 6px; padding: 10px; text-align: center; }
+    .stat-value { font-size: 20px; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+    .stat-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .json-view { background: #0a0f1e; border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-family: monospace; font-size: 11px; overflow-x: auto; }
+    .json-key { color: #8b5cf6; } .json-string { color: #10b981; } .json-number { color: #f59e0b; } .json-boolean { color: #3b82f6; }
+
+    .copy-btn { background: var(--accent); color: white; border: none; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; }
+
+    /* Loading */
+    .loading-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8); display: none; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); }
+    .loading-overlay.active { display: flex; }
+    .loading-box { background: var(--panel); padding: 32px; border-radius: 12px; text-align: center; border: 1px solid var(--border); }
+    .spinner { width: 48px; height: 48px; border: 4px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--panel); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .empty-state { text-align: center; padding: 40px 20px; color: var(--text-dim); }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">🔍</div>
+      <div>
+        <div>Digital Inspector Pro</div>
+        <div style="font-size: 11px; color: var(--text-dim);">Armeta AI Hackathon</div>
+      </div>
+      <span class="badge">v3.0</span>
+    </div>
+    <div class="actions">
+      <button class="btn btn-secondary" onclick="clearAll()">🗑️ Clear</button>
+      <button class="btn btn-primary" id="processBtn" onclick="processDocuments()" disabled>
+        ⚡ Process
+      </button>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-title">Documents</span>
+        <span class="file-count" id="fileCount">0</span>
+      </div>
+
+      <div class="upload-zone" id="uploadZone">
+        <div style="font-size: 24px; margin-bottom: 8px;">📁</div>
+        <div style="font-weight: 500; margin-bottom: 4px;">Drop files here</div>
+        <div style="font-size: 11px; color: var(--text-dim);">PDF, PNG, JPG</div>
+        <input type="file" id="fileInput" multiple accept=".pdf,.png,.jpg,.jpeg" style="display: none;">
+      </div>
+
+      <div class="files-list" id="filesList"></div>
+    </div>
+
+    <div class="main">
+
+      <div class="viewer-toolbar" id="viewerToolbar" style="display: none;">
+        <button class="control-btn" onclick="prevPage()" title="Previous Page">◀</button>
+        <span class="page-info">
+            Page <span id="currentPageNum">1</span> / <span id="totalPageNum">1</span>
+        </span>
+        <button class="control-btn" onclick="nextPage()" title="Next Page">▶</button>
+
+        <div class="zoom-controls">
+            <button class="control-btn" onclick="changeZoom(-0.2)" title="Zoom Out">－</button>
+            <button class="control-btn" onclick="changeZoom(0.2)" title="Zoom In">＋</button>
+        </div>
+      </div>
+
+      <div class="viewer-container" id="viewerContainer">
+        <div class="viewer-placeholder" id="viewerPlaceholder">
+          <div style="font-size: 48px; margin-bottom: 16px;">📄</div>
+          <h3>Document Viewer</h3>
+          <p style="font-size: 13px; color: var(--text-dim);">Select a file to view</p>
+        </div>
+        <canvas id="pdfCanvas" style="display: none;"></canvas>
+      </div>
+    </div>
+
+    <div class="right-panel">
+      <div class="panel-header">
+        <span class="sidebar-title">Results</span>
+        <button class="copy-btn" onclick="copyJSON()">JSON</button>
+      </div>
+
+      <div class="panel-tabs">
+        <div class="tab active" data-tab="stats" onclick="switchTab('stats')">Statistics</div>
+        <div class="tab" data-tab="json" onclick="switchTab('json')">Raw Data</div>
+      </div>
+
+      <div class="panel-content">
+        <div id="statsTab" class="tab-content">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-value" id="qrCount">0</div>
+              <div class="stat-label">QR</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="stampCount">0</div>
+              <div class="stat-label">Stamps</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="signCount">0</div>
+              <div class="stat-label">Signs</div>
+            </div>
+          </div>
+          <div class="empty-state" id="emptyState">
+            <p>No results yet</p>
+          </div>
+        </div>
+
+        <div id="jsonTab" class="tab-content" style="display: none;">
+          <div class="json-view" id="jsonView">
+            <div class="empty-state"><p>No data</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-box">
+      <div class="spinner"></div>
+      <div id="loadingText">Processing...</div>
+    </div>
+  </div>
+
+  <script>
+    // --- CONFIGURATION ---
+    const API_URL = 'http://localhost:8000';
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    // --- STATE ---
+    let uploadedFiles = [];
+    let currentTaskId = null;
+    let currentResults = null;
+    let currentFileIndex = -1;
+
+    // PDF Viewer State
+    let pdfDoc = null;
+    let pageNum = 1;
+    let pageRendering = false;
+    let pageNumPending = null;
+    let currentScale = 1.2; // Initial Zoom
+
+    // --- DOM ---
+    const fileInput = document.getElementById('fileInput');
+    const uploadZone = document.getElementById('uploadZone');
+    const filesList = document.getElementById('filesList');
+    const canvas = document.getElementById('pdfCanvas');
+    const ctx = canvas.getContext('2d');
+    const viewerToolbar = document.getElementById('viewerToolbar');
+
+    // --- UPLOAD HANDLERS ---
+    uploadZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', handleFileSelect);
+
+    uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.style.borderColor = 'var(--accent)'; });
+    uploadZone.addEventListener('dragleave', () => { uploadZone.style.borderColor = 'var(--border)'; });
+    uploadZone.addEventListener('drop', (e) => { e.preventDefault(); uploadZone.style.borderColor = 'var(--border)'; handleFileSelect({ target: { files: e.dataTransfer.files } }); });
+
+    function handleFileSelect(e) {
+      const files = Array.from(e.target.files);
+      if (files.length === 0) return;
+      uploadedFiles = files;
+      renderFilesList();
+      document.getElementById('processBtn').disabled = false;
+    }
+
+    // --- MAIN LOGIC ---
+
+    function renderFilesList() {
+      filesList.innerHTML = '';
+      if (uploadedFiles.length === 0) {
+        document.getElementById('fileCount').textContent = '0';
+        return;
+      }
+
+      uploadedFiles.forEach((file, idx) => {
+        const div = document.createElement('div');
+        div.className = 'file-item';
+        if (idx === currentFileIndex) div.classList.add('active');
+
+        div.innerHTML = `
+          <div class="file-icon">📄</div>
+          <div class="file-info">
+            <div class="file-name">${escapeHtml(file.name)}</div>
+            <div class="file-meta">${(file.size / 1024).toFixed(1)} KB</div>
+          </div>
+        `;
+        div.onclick = () => selectFile(idx);
+        filesList.appendChild(div);
+      });
+      document.getElementById('fileCount').textContent = uploadedFiles.length;
+    }
+
+    async function selectFile(idx) {
+      currentFileIndex = idx;
+
+      // Highlight active
+      document.querySelectorAll('.file-item').forEach((el, i) => {
+        el.classList.toggle('active', i === idx);
+      });
+
+      const file = uploadedFiles[idx];
+      let fileUrl = URL.createObjectURL(file);
+      let isProcessed = false;
+
+      // Check for processed version
+      if (currentResults && currentResults.results) {
+        const result = currentResults.results.find(r => r.filename === file.name);
+        if (result && result.output_image) {
+            fileUrl = `${API_URL}/api/image/${currentTaskId}/${result.output_image}`;
+            isProcessed = true;
+        }
+        // Show JSON
+        if (result) showFileJSON(result);
+      }
+
+      // RESET VIEW
+      document.getElementById('viewerPlaceholder').style.display = 'none';
+      canvas.style.display = 'block';
+
+      // Reset Zoom for new file
+      currentScale = 1.2;
+
+      if (file.type === 'application/pdf') {
+        // PDF MODE
+        viewerToolbar.style.display = 'flex'; // Show Toolbar
+        await loadPDF(fileUrl);
+      } else {
+        // IMAGE MODE
+        viewerToolbar.style.display = 'none'; // Hide Toolbar (Simple view for now)
+        const img = new Image();
+        if (isProcessed) img.crossOrigin = "Anonymous";
+
+        img.onload = () => {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          // Fit to width logic (simple)
+          const containerWidth = document.getElementById('viewerContainer').clientWidth - 80;
+          if (img.width > containerWidth) {
+              canvas.style.width = '100%';
+              canvas.style.height = 'auto';
+          } else {
+              canvas.style.width = 'auto';
+              canvas.style.height = 'auto';
+          }
+          ctx.drawImage(img, 0, 0);
+        };
+        img.src = fileUrl;
+      }
+    }
+
+    // --- PDF VIEWER ---
+    async function loadPDF(url) {
+      const loadingTask = pdfjsLib.getDocument(url);
+      pdfDoc = await loadingTask.promise;
+      document.getElementById('totalPageNum').textContent = pdfDoc.numPages;
+      pageNum = 1;
+      renderPage(pageNum);
+    }
+
+    function renderPage(num) {
+      pageRendering = true;
+      pdfDoc.getPage(num).then(page => {
+        const viewport = page.getViewport({ scale: currentScale });
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        // Ensure CSS doesn't constrain size (for zoom to work)
+        canvas.style.width = `${viewport.width}px`;
+        canvas.style.height = `${viewport.height}px`;
+
+        const renderContext = {
+          canvasContext: ctx,
+          viewport: viewport
+        };
+
+        page.render(renderContext).promise.then(() => {
+          pageRendering = false;
+          if (pageNumPending !== null) {
+            renderPage(pageNumPending);
+            pageNumPending = null;
+          }
+        });
+        document.getElementById('currentPageNum').textContent = num;
+      });
+    }
+
+    function queueRenderPage(num) {
+      if (pageRendering) { pageNumPending = num; } else { renderPage(num); }
+    }
+
+    function prevPage() { if (pageNum <= 1) return; pageNum--; queueRenderPage(pageNum); }
+    function nextPage() { if (pageNum >= pdfDoc.numPages) return; pageNum++; queueRenderPage(pageNum); }
+
+    function changeZoom(delta) {
+        if (!pdfDoc) return;
+        const newScale = currentScale + delta;
+        if (newScale > 0.4 && newScale < 5.0) {
+            currentScale = newScale;
+            renderPage(pageNum);
+        }
+    }
+
+    // --- API PROCESSING ---
+    async function processDocuments() {
+      if (uploadedFiles.length === 0) return;
+      showLoading('Uploading...');
+
+      try {
+        const formData = new FormData();
+        uploadedFiles.forEach(file => formData.append('files', file));
+
+        // 1. Upload
+        const uploadRes = await fetch(`${API_URL}/api/upload`, { method: 'POST', body: formData });
+        const uploadData = await uploadRes.json();
+        currentTaskId = uploadData.task_id;
+
+        showLoading('Processing AI...');
+
+        // 2. Process
+        const processRes = await fetch(`${API_URL}/api/process/${currentTaskId}`, { method: 'POST' });
+        const processData = await processRes.json();
+        currentResults = processData;
+
+        displayResults(processData);
+        hideLoading();
+        console.log("Success");
+
+      } catch (error) {
+        hideLoading();
+        console.error(error);
+        alert('Error: ' + error.message);
+      }
+    }
+
+    function displayResults(data) {
+      if (!data.results) return;
+
+      // Calc Stats
+      let qr = 0, stamp = 0, sign = 0;
+      data.results.forEach(r => {
+        if (r.detections) r.detections.forEach(d => {
+          if (d.type === 'qr_code') qr++;
+          if (d.type === 'stamp') stamp++;
+          if (d.type === 'signature') sign++;
+        });
+      });
+
+      document.getElementById('qrCount').textContent = qr;
+      document.getElementById('stampCount').textContent = stamp;
+      document.getElementById('signCount').textContent = sign;
+      document.getElementById('emptyState').style.display = 'none';
+
+      // Update List with Badges
+      renderFilesListWithResults(data.results);
+
+      // Auto-Refresh current view
+      if (currentFileIndex !== -1) selectFile(currentFileIndex);
+      else if (uploadedFiles.length > 0) selectFile(0);
+    }
+
+    function renderFilesListWithResults(results) {
+        filesList.innerHTML = '';
+        uploadedFiles.forEach((file, idx) => {
+            const result = results.find(r => r.filename === file.name);
+            const detections = result?.detections || [];
+
+            const qr = detections.filter(d => d.type === 'qr_code').length;
+            const stamp = detections.filter(d => d.type === 'stamp').length;
+            const sign = detections.filter(d => d.type === 'signature').length;
+
+            const div = document.createElement('div');
+            div.className = `file-item ${idx === currentFileIndex ? 'active' : ''}`;
+            div.innerHTML = `
+              <div class="file-icon">📄</div>
+              <div class="file-info">
+                <div class="file-name">${escapeHtml(file.name)}</div>
+                <div class="file-meta">
+                  ${qr > 0 ? `<span class="file-badge badge-qr">${qr} QR</span>` : ''}
+                  ${stamp > 0 ? `<span class="file-badge badge-stamp">${stamp} S</span>` : ''}
+                  ${sign > 0 ? `<span class="file-badge badge-sign">${sign} Sig</span>` : ''}
+                </div>
+              </div>
+            `;
+            div.onclick = () => selectFile(idx);
+            filesList.appendChild(div);
+        });
+    }
+
+    // --- UTILS ---
+    function showFileJSON(result) {
+      const jsonView = document.getElementById('jsonView');
+      jsonView.innerHTML = `<pre>${syntaxHighlight(JSON.stringify(result, null, 2))}</pre>`;
+    }
+
+    function syntaxHighlight(json) {
+      json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+        let cls = 'json-number';
+        if (/^"/.test(match)) {
+            if (/:$/.test(match)) cls = 'json-key';
+            else cls = 'json-string';
+        } else if (/true|false/.test(match)) cls = 'json-boolean';
+        return '<span class="' + cls + '">' + match + '</span>';
+      });
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+      document.getElementById('statsTab').style.display = tab === 'stats' ? 'block' : 'none';
+      document.getElementById('jsonTab').style.display = tab === 'json' ? 'block' : 'none';
+    }
+
+    function copyJSON() {
+      if (currentResults) {
+          navigator.clipboard.writeText(JSON.stringify(currentResults, null, 2));
+          alert('JSON Copied!');
+      }
+    }
+
+    function clearAll() {
+      if (!confirm('Clear all?')) return;
+      uploadedFiles = []; currentTaskId = null; currentResults = null; currentFileIndex = -1;
+      renderFilesList();
+      document.getElementById('processBtn').disabled = true;
+      document.getElementById('viewerPlaceholder').style.display = 'block';
+      canvas.style.display = 'none';
+      viewerToolbar.style.display = 'none';
+      document.getElementById('qrCount').textContent = '0';
+      document.getElementById('stampCount').textContent = '0';
+      document.getElementById('signCount').textContent = '0';
+      document.getElementById('jsonView').innerHTML = '<div class="empty-state"><p>No data</p></div>';
+    }
+
+    function showLoading(t) { document.getElementById('loadingText').textContent = t; document.getElementById('loadingOverlay').classList.add('active'); }
+    function hideLoading() { document.getElementById('loadingOverlay').classList.remove('active'); }
+    function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+  </script>
+</body>
+</html>
